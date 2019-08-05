@@ -17,7 +17,7 @@ class CatFactRecyclerAdapter(val dataList: ArrayList<CatFact>,
         return CatFactViewHolder(inflater.inflate(R.layout.cat_fact_holder, parent, false))
     }
 
-    override fun getItemCount(): Int = dataList.size
+    override fun getItemCount() = dataList.size
 
     override fun onBindViewHolder(holder: CatFactViewHolder, position: Int) {
         val data = dataList[position]
