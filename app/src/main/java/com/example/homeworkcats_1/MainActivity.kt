@@ -1,5 +1,6 @@
 package com.example.homeworkcats_1
 
+import android.content.Context
 import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
 import android.support.v4.widget.SwipeRefreshLayout
@@ -7,23 +8,25 @@ import android.support.v7.widget.LinearLayoutManager
 import android.support.v7.widget.RecyclerView
 import android.util.Log
 import com.example.homeworkcats_1.DataClasses.CatFact
-import com.example.homeworkcats_1.Presentors.MainPresentor
+import com.example.homeworkcats_1.Presenters.MainPresenter
 import com.example.homeworkcats_1.RecyclerAdapters.CatFactRecyclerAdapter
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), PresenterDelegate {
 
     private val TAG = "APPActivity"
+    override lateinit var context: Context
+    override var isFirst: Boolean = true
 
-    private lateinit var presentor: MainPresentor
-    lateinit var swipe: SwipeRefreshLayout
+    private lateinit var presenter: MainPresenter
+    private lateinit var swipe: SwipeRefreshLayout
     private lateinit var recycler: RecyclerView
-    lateinit var customAdapter: CatFactRecyclerAdapter
-    val dataList: ArrayList<CatFact> = arrayListOf()
-    var isFirst: Boolean = true
+    private lateinit var customAdapter: CatFactRecyclerAdapter
+    private val dataList: ArrayList<CatFact> = arrayListOf()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        presentor = MainPresentor(this)
+        context = this.applicationContext
+        presenter = MainPresenter(this)
         savedInstanceState?.let {
             Log.e(TAG, "have savedInstanceState")
             isFirst = it.getBoolean("isFirst", true)
@@ -32,10 +35,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         swipe = findViewById(R.id.swipe)
         swipe.setOnRefreshListener {
-            presentor.onRefresh()
+            presenter.onRefresh()
         }
         recycler = findViewById(R.id.recycler)
-        customAdapter = CatFactRecyclerAdapter(dataList, presentor.onClickCard())
+        customAdapter = CatFactRecyclerAdapter(dataList, presenter.onClickCard())
         recycler.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = customAdapter
@@ -45,7 +48,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        presentor.onStart()
+        presenter.onStart()
     }
 
     override fun onSaveInstanceState(outState: Bundle?) {
@@ -58,7 +61,17 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        presentor.onDestroy()
+        presenter.onDestroy()
     }
 
+    override fun updateRecycler(a: Array<CatFact>) {
+        //mb clear before add
+        dataList.clear()
+        dataList.addAll(a)
+        customAdapter.notifyDataSetChanged()
+    }
+
+    override fun stopRefreshing() {
+        swipe.isRefreshing = false
+    }
 }
