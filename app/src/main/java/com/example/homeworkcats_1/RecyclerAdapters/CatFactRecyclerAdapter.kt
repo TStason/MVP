@@ -10,7 +10,7 @@ import com.example.homeworkcats_1.R
 import com.example.homeworkcats_1.VIewHolders.CatFactViewHolder
 
 class CatFactRecyclerAdapter(val dataList: ArrayList<CatFact>,
-                             val onClickListener: (CatFact)-> Unit
+                             val onClickListener: (CatFact)-> Unit?
                             ): RecyclerView.Adapter<CatFactViewHolder>() {
     override fun onCreateViewHolder(parent: ViewGroup, p1: Int): CatFactViewHolder {
         val inflater = LayoutInflater.from(parent.context)

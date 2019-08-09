@@ -10,6 +10,7 @@ import android.util.Log
 import com.example.homeworkcats_1.DataClasses.CatFact
 import com.example.homeworkcats_1.Presenters.MainPresenter
 import com.example.homeworkcats_1.RecyclerAdapters.CatFactRecyclerAdapter
+import java.lang.ref.WeakReference
 
 class MainActivity : AppCompatActivity(), PresenterDelegate {
 
@@ -26,7 +27,7 @@ class MainActivity : AppCompatActivity(), PresenterDelegate {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         context = this.applicationContext
-        presenter = MainPresenter(this)
+        presenter = MainPresenter(WeakReference(this))
         savedInstanceState?.let {
             Log.e(TAG, "have savedInstanceState")
             isFirst = it.getBoolean("isFirst", true)

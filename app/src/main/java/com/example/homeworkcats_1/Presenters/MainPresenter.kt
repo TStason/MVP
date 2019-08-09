@@ -36,7 +36,7 @@ class MainPresenter(private val view: WeakReference<PresenterDelegate>) {
         }
     }
     fun onClickCard() = { catFact: CatFact ->
-        Log.e("APPCardHolder", "Called OnClick by id=${catFact._id}")
+        Log.e("APPCardHolder", "Called OnClick by id=${catFact}")
         view.get()?.let{
             val intent = Intent(it.context, SecondActivity::class.java)
             intent.putExtra("CatFact", catFact as Parcelable)

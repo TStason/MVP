@@ -24,7 +24,7 @@ class CatFactViewHolder(v: View): RecyclerView.ViewHolder(v)
         catFactOwner = itemView.findViewById(R.id.catFactOwner)
         catFactDateUpdate = itemView.findViewById(R.id.catDateUpdate)
     }
-    fun bind(data: CatFact, onClickListener: (CatFact)->Unit){
+    fun bind(data: CatFact, onClickListener: (CatFact)->Unit?){
         catFact = data
         catFactText.text = catFact.text
         catFactOwner.text = "${catFact.user?.name?.first} ${catFact.user?.name?.last}"
