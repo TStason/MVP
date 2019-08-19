@@ -17,96 +17,137 @@ import java.lang.IllegalArgumentException
 import java.lang.ref.WeakReference
 import kotlin.coroutines.suspendCoroutine
 
-class MainPresenter(private val view: WeakReference<PresenterDelegate>) {
-
+class MainPresenter(private var view: WeakReference<PresenterDelegate>?) {
     private val TAG = "APPpresenter"
     //state
     private var isRefreshed = false
-    //coroutine
-    private val parentJob = Job()
-    private val mainScope = CoroutineScope(Dispatchers.Main + parentJob)
+    //coroutines
+    private lateinit var parentJob: Job
+    private lateinit var presenterScope: CoroutineScope
     //repo
     private lateinit var repoFact: Repo.APIfacts
     private lateinit var repoCats: Repo.APIcats
 
     init{
-        view.get()?.let {
-            repoFact = Repo.APIfacts.getApi(it.context)
-            repoCats = Repo.APIcats.getApi(it.context)
+        setRepos()
+        setPresenterScope()
+    }
+
+    private fun setRepos(){
+        view?.get()?.let {
+            repoFact = Repo().getRepo<Repo.APIfacts>("https://cat-fact.herokuapp.com", it.context)
+            repoCats = Repo().getRepo<Repo.APIcats>("https://aws.random.cat", it.context)
         }
     }
+
+    private fun setPresenterScope(){
+        if (!::presenterScope.isInitialized || !::parentJob.isInitialized || parentJob.isCancelled){
+            parentJob = SupervisorJob()
+            parentJob.invokeOnCompletion {
+                it?.message.let {
+                    var msg = it
+                    if (msg.isNullOrBlank()){
+                        msg = "Unknown cancelling error."
+                    }
+                    Log.e(TAG, "$parentJob was cancelled. Reason: $msg")
+                }
+            }
+            presenterScope = CoroutineScope(Dispatchers.Default + parentJob)
+            Log.d(TAG, "PresenterScope = $presenterScope, mainJob = $parentJob")
+        }
+    }
+
+    fun attachView(newView: WeakReference<PresenterDelegate>){
+        //Log.e(TAG, "OldView: $view, NewView: $newView")
+        view = newView
+        setRepos()
+        setPresenterScope()
+    }
+
     fun onClickCard() = { catFact: CatFact ->
         Log.e("APPCardHolder", "Called OnClick by id=${catFact}")
-        view.get()?.let{
-            val intent = Intent(it.context, SecondActivity::class.java)
+        view?.get()?.let{ delegate ->
+            val intent = Intent(delegate.context, SecondActivity::class.java)
             intent.putExtra("CatFact", catFact as Parcelable)
-            it.context.startActivity(intent)
+            delegate.context.startActivity(intent)
         }
     }
 
-    fun onRefresh() = mainScope.launch{
-        view.get()?.let{
-            if (isRefreshed){
-                it.stopRefreshing()
-                Log.d(TAG, "Already refreshing")
-                Toast.makeText(it.context, "Already refreshing", Toast.LENGTH_SHORT).show()
-            } else {
-                getData().join()
-                it.stopRefreshing()
-            }
+    private fun toastOnUI(text: String?) = presenterScope.launch(Dispatchers.Main){
+        view?.get()?.let{
+            Toast.makeText(it.context, text, Toast.LENGTH_SHORT).show()
         }
     }
 
-    fun getData() = mainScope.launch{
-        view.get()?.let{
-            if (isRefreshed){
-                Log.d(TAG, "Already refreshing")
-                Toast.makeText(it.context, "Already refreshing", Toast.LENGTH_SHORT).show()
-                return@launch
+    fun onRefresh() {
+        getData()
+    }
+
+    private fun updateRecycler(a: Array<CatFact>) {
+        Log.e(TAG, "Receiver: $view")
+        view?.get()?.let { delegate ->
+            delegate.updateRecycler(a)
+            delegate.stopRefreshing()
+            toastOnUI("Update ended")
+        }
+    }
+
+    private fun getData() = presenterScope.launch{
+        if (isRefreshed) {
+            Log.d(TAG, "Already refreshing")
+            toastOnUI("Already refreshing")
+            return@launch
+        }
+        isRefreshed = true
+        try {
+            val res = repoFact.getFactsAsyncOld().await().all
+            Log.e(TAG, "Ended load facts")
+            res.forEach { fact ->
+                fact.imgUrl = repoCats.getCatImgAsync().await().file
             }
-            isRefreshed = true
-            try{
-                val res = this@MainPresenter.repoFact.getFactsAsyncOld().await().all
-                res.forEach {
-                    it.imgUrl = repoCats.getCatImgAsync().await().file
-                    delay(10L)
-                }
-                it.updateRecycler(res)
+            Log.e(TAG, "Ended load img")
+            withContext(Dispatchers.Main){
+                updateRecycler(res)
             }
-            catch (ex: Exception){
-                Toast.makeText(it.context, "${ex.message}", Toast.LENGTH_SHORT).show()
-                Log.e(TAG, "${ex.message}")
-            }
+        } catch (ex: Exception) {
+            toastOnUI(ex.message)
+            Log.e(TAG, "${ex.message}")
+        } finally {
+            Log.e(TAG, "Finally")
             isRefreshed = false
         }
     }
 
-    fun onStart() = mainScope.launch{
-        view.get()?.let{
-            if (it.isFirst){
-                getData().join()
-                it.isFirst = false
+    fun onStart() {
+        view?.get()?.let{ delegate ->
+            if (delegate.isFirst){
+                delegate.isFirst = false
+                getData()
             }
         }
     }
 
-    fun onDestroy(){
-        Log.d(TAG, "onDestroy")
-        parentJob.cancel()
-        Log.e(TAG, "Canceled parent job: $parentJob")
+    private fun cancelAllJob(){
+        presenterScope.coroutineContext.cancelChildren(CancellationException("Requester on destroyed"))
     }
 
-    suspend fun <T> Call<T>.await(): T = suspendCoroutine{cont ->
-        mainScope.launch(Dispatchers.IO) {
+    fun onDestroy() {
+        Log.d(TAG, "onDestroy")
+        view = null
+        //cancelAllJob()
+    }
+
+    private suspend fun <T> Call<T>.await(): T = suspendCoroutine{cont ->
+        presenterScope.launch(Dispatchers.IO) {
             enqueue(object : Callback<T> {
                 override fun onFailure(call: Call<T>, t: Throwable) {
                     Log.e("APPRepo", "onFailur: ${t.message}")
                     cont.resumeWith(Result.failure(t))
                 }
                 override fun onResponse(call: Call<T>, response: Response<T>) {
-                    Log.e("APPRepo", "onResponse: $response")
+                    //Log.d("APPRepo", "onResponse: $response")
                     if (response.isSuccessful)
-                        response.body()?. let {cont.resumeWith(Result.success(it))} ?:
+                        response.body()?.let {cont.resumeWith(Result.success(it))} ?:
                         cont.resumeWith(Result.failure(IllegalArgumentException("NULL")))
                     else
                         cont.resumeWith(Result.failure(IllegalArgumentException("Error code: ${response.code()}")))
