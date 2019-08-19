@@ -18,33 +18,20 @@ class Repo {
     interface APIcats{
         @GET("/meow")
         fun getCatImgAsync(): Call<CatImage>
-
-        companion object Factory {
-            private const val baseURL = "https://aws.random.cat"
-            fun getApi(context: Context, baseUrl: String= baseURL): APIcats = Retrofit.Builder()
-                .baseUrl(baseUrl)
-                .addConverterFactory(MoshiConverterFactory.create())
-                .client(getClient(context))
-                .build()
-                .create(APIcats::class.java)
-        }
     }
 
-    interface APIfacts {
-
+    interface APIfacts{
         @GET("/facts")
         fun getFactsAsyncOld(): Call<CostylClass>
-
-        companion object Factory {
-            private const val baseURL = "https://cat-fact.herokuapp.com"
-            fun getApi(context: Context, baseUrl : String= baseURL): APIfacts = Retrofit.Builder()
-                .baseUrl(baseURL)
-                .addConverterFactory(MoshiConverterFactory.create())
-                .client(HttpClient.getClient(context))
-                .build()
-                .create(APIfacts::class.java)
-        }
     }
+
+    inline fun <reified T: Any> getRepo(url: String, context: Context) =
+        Retrofit.Builder()
+            .baseUrl(url)
+            .addConverterFactory(MoshiConverterFactory.create())
+            .client(HttpClient.getClient(context))
+            .build()
+            .create(T::class.java)
 
     companion object HttpClient {
         private val cacheSize: Long = 10 * 1024 * 1024
