@@ -27,7 +27,8 @@ class MainActivity : AppCompatActivity(), PresenterDelegate {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         context = this.applicationContext
-        presenter = MainPresenter(WeakReference(this))
+        attachPresenter()
+        Log.e(TAG, "$presenter")
         savedInstanceState?.let {
             Log.e(TAG, "have savedInstanceState")
             isFirst = it.getBoolean("isFirst", true)
@@ -65,8 +66,15 @@ class MainActivity : AppCompatActivity(), PresenterDelegate {
         presenter.onDestroy()
     }
 
+    private fun attachPresenter() {
+        presenter = (lastCustomNonConfigurationInstance as? MainPresenter)?.apply {
+            this.attachView(WeakReference(this@MainActivity))
+        } ?: MainPresenter(WeakReference(this))
+    }
+
+    override fun onRetainCustomNonConfigurationInstance(): Any = presenter
+
     override fun updateRecycler(a: Array<CatFact>) {
-        //mb clear before add
         dataList.clear()
         dataList.addAll(a)
         customAdapter.notifyDataSetChanged()
